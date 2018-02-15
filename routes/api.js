@@ -13,7 +13,6 @@ router.get('/qsets/:start?/:limit?', function(req, res) {
 	ApiController.listQuestionSets(params,start,limit)
 		.then(qSets => {
 			res.send(qSets);
-			console.log(e)
 		}).catch(e => {
 			res.send(e);
 		});
