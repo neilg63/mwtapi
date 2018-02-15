@@ -1,0 +1,26 @@
+{
+  "name": "multiwebtest",
+  "version": "1.0.0",
+  "description": "Versatile Survey and Test Management System",
+  "main": "mwt-mongo-schema.js",
+  "scripts": {
+    "start": "NODE_ENV=dev nodemon index.js",
+    "test": "NODE_ENV=test nodemon --exec 'mocha --recursive -R min'"
+  },
+  "author": "Neil Gardner",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "express": "^4.16.2",
+    "lodash": "^4.17.4",
+    "mongoose": "^5.0.1",
+    "mongoose-autopopulate": "^0.6.1",
+    "mongoose-deep-populate": "^3.0.0",
+    "mongoose-fill": "^1.7.0",
+    "options": "0.0.6"
+  },
+  "devDependencies": {
+    "mocha": "^5.0.0",
+    "supertest": "^3.0.0"
+  }
+}
