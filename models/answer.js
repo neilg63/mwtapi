@@ -63,56 +63,8 @@ const AnswerSchema = new mongoose.Schema({
 /*
 * Revise to take account of multiple answer rules
 */
-AnswerSchema.virtual('points').get(function() {
-  let points = 0, countPoints = true;
-  if (this.options.length > 0) {
-  	let numOpts = this.options.length;
-  	
-  	let aMode = 'all';
-  	let countCorrect = false;
-  	let invalidate = false;
-  	if (this.question) {
-  		switch (this.question.mode) {
-	  		case 'multiple_answer':
-	  			switch (this.question.pointsMode) {
-	  				case 'exact':
-	  					aMode = 'zero_if_any_wrong';
-	  					break;
-	  				case 'partial_valid':
-	  					aMode = 'points_to_max_correct';
-	  					countCorrect = true;
-	  					break;
-	  			}
-	  			break;
-	  		case 'freetext_match':
-	  			countPoints = false;
-	  			if (this.options.length > 0 && typeof this.value == 'string') {
-	  				let op = this.options[0];
-	  				let ps = op.text.split('#');
-	  				if (ps.length>1) {
-	  					let rgx = new RegExp(ps[0],ps[1]);
-	  					countPoints = rgx.test(this.value);
-	  				}
-	  			}
-	  			break;
-	  	}
-	  	if (countCorrect) {
-	  		let correctOpts = this.question.options.filter(q => q.points > 0);
-	  	}
-  	}
-  	if (countPoints) {
-			for (let i = 0; i < numOpts; i++) {
-	  		if (this.options[i].points) {
-	  			if (aMode == 'zero_if_any_wrong' && points <= 0) {
-	  				invalidate = true;
-	  				break;
-	  			}
-	  			points += this.options[i].points;
-	  		}
-	  	}
-  	}
-  }
-  return points;
+AnswerSchema.virtual('points').get(function(question) {
+  return Mark.calcQuestionPoints(this);
 });
 
 AnswerSchema.virtual('scaleSets').get(function() {
@@ -151,5 +103,23 @@ AnswerSchema.virtual('scales').get(function() {
   }
   return scales;
 });
+
+calcMaxDeviance = (correct = [], attempt = []) => {
+	var maxDeviance = (arrLength = 0) => {
+		let deviance = 0,
+			maxRange = Math.floor(arrLength/2);
+		for (let i = 0; i < arrLength; i++) {
+			deviance += Math.abs(i - maxRange) * 2;
+		}
+		return deviance;
+	}
+	let deviance = 0, num;
+	for (let i = 0; i < correct.length; i++) {
+		num = correct[i];
+		deviance += Math.abs(i - attempt.indexOf(num));
+	}
+
+	return 1 - Math.pow(deviance/maxDeviance(correct.length),0.5);
+}
 
 module.exports = AnswerSchema;

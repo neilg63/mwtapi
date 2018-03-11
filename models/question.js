@@ -121,6 +121,26 @@ QuestionSchema.virtual('hasTiming').get(function() {
   return hasTiming;
 });
 
+QuestionSchema.virtual('maxPoints').get(function() {
+  let max = 0;
+  if (typeof this.points == 'number') {
+    max = parseFloat(this.points);
+  } else {
+    let max = this.options.map(o => {
+      if (o.points) {
+        return o.points;
+      } else {
+        return 0;
+      }
+    }).reduce((prev,curr) => prev + curr);
+    if (max < 1) {
+      max = 1;
+    }
+    return max;
+  }
+  return max;
+});
+
 QuestionSchema.methods.addFeedback = function(params, optionIndex) {
 	let keys = Object.keys(params), k;
 	let fb = {};

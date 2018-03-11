@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const assert = require('assert');
 const _ = require('lodash');
 const Category = require('../models/category');
+const Assessment = require('../models/assessment');
 const QuestionSet = require('../models/questionSet');
 const Question = require('../models/question');
 const Mark = require('../models/mark');
@@ -12,13 +13,13 @@ const User = require('../models/user');
 let createQuestions = (user) => {
 
 	let cat1 = new Category({
-		title: "Geography",
+		title: "General Knowledge",
 		weight: 0,
 		user: user,
 		created: new Date()
 	});
 
-	let qs = QuestionSet.create({
+	let ass1 = Assessment.create({
 		category: cat1,
 		weight: 0,
 		title: 'Geography',
@@ -29,8 +30,18 @@ let createQuestions = (user) => {
 		limit: 20
 	}, user);
 
+	let qs1 = ass1.addSection({
+		weight: 0,
+		title: 'World Geography',
+		text: 'Test your general knowledge about World geography',
+		mode: "test",
+		points: 25,
+		random: true,
+		limit: 20
+	});
 
-	let q1 = qs.addQuestion({
+
+	let q1 = qs1.addQuestion({
 		text: 'What is the capital of Australia?',
 		mode: 'multiple_choice',
 		weight: 0,
@@ -76,7 +87,7 @@ let createQuestions = (user) => {
 		text: "It's the biggest city but not the capital"
 	},0);
 
-	let q2 = qs.addQuestion({
+	let q2 = qs1.addQuestion({
 		text: 'Which countries are in Africa?',
 		mode: 'multiple_answer',
 		pointsMode: 'exact',
@@ -137,7 +148,7 @@ let createQuestions = (user) => {
 
 	
 
-	let q3 = qs.addQuestion({
+	let q3 = qs1.addQuestion({
 		text: 'Can you breath on the moon unaided?',
 		mode: 'boolean',
 		weight: 2,
@@ -161,20 +172,20 @@ let createQuestions = (user) => {
 	});
 	
 
-	qs.addFeedback({
+	ass1.addFeedback({
 		min: 0,
 		max: 49.999,
 		validity: "range",
 		text: "Better luck next time"
 	});
-	qs.addFeedback({
+	ass1.addFeedback({
 		min: 50,
 		max: -1,
 		validity: "range",
 		text: "Well done!"
 	});
 
-	let qs2 = qs.addSection({
+	let qs2 = ass1.addSection({
 		weight: 0,
 		title: 'Scottish Geography',
 		text: 'Test your general knowledge about Scottish landmarks',
@@ -284,12 +295,49 @@ let createQuestions = (user) => {
 		matches: 3
 	});
 
-	return Promise.all([cat1.save(),qs.save()]);
+	let q7 = qs2.addQuestion({
+		text: "Sort these countries in order of physical size",
+		mode: 'sort',
+		weight: 5,
+		random: true
+	});
+
+	q7.addOption({
+		text: "Japan",
+		number: 3,
+		weight: 0,
+	});
+
+	q7.addOption({
+		text: "Algeria",
+		number: 2,
+		weight: 1
+	});
+
+	q7.addOption({
+		text: "Russia",
+		number: 1,
+		weight: 2
+	});
+
+	q7.addOption({
+		text: "Bangladesh",
+		number: 5,
+		weight: 3
+	});
+
+	q7.addOption({
+		text: "Italy",
+		number: 4,
+		weight: 4
+	});
+
+	return Promise.all([cat1.save(),ass1.save()]);
 }
 
-let createMark = (questionSet,user) => {
+let createMark = (assessment,user) => {
 	
-	let qs = questionSet.questions;
+	let qs = assessment.sections[0].questions;
 	let op1 = qs[0].options[1];
 
 	let op2a = qs[1].options[6];
@@ -297,39 +345,43 @@ let createMark = (questionSet,user) => {
 	let op3 = qs[2].options[1];
 
 	let mark = new Mark({
-		questionSet: questionSet,
+		assessment: assessment,
 		user: user
 	});
+
+	let qs1 = assessment.sections[0];
+
+	let ms1Index = mark.addSection(qs1);
 
 	mark.addAnswer({
 		question: qs[0],
 		options: [op1]
-	});
+	},ms1Index);
 
 	mark.addAnswer({
 		question: qs[1],
 		options: [op2a, op2b]
-	});
+	},ms1Index);
 
 	mark.addAnswer({
 		question: qs[2],
 		options: [op3]
-	});
+	},ms1Index);
 
-	let qs2 = questionSet.sections[0];
+	let qs2 = assessment.sections[1];
 
 	let ms2Index = mark.addSection(qs2);
 	
 
-	let op4 = questionSet.sections[0].questions[0].options[0];
+	let op4 = qs2.questions[0].options[0];
 	mark.addAnswer({
-		question: questionSet.sections[0].questions[0],
+		question: qs2.questions[0],
 		options: [op4]
 	}, ms2Index);
 
-	let op5 = questionSet.sections[0].questions[1].options[0];
+	let op5 = qs2.questions[1].options[0];
 	mark.addAnswer({
-		question: questionSet.sections[0].questions[1],
+		question: qs2.questions[1],
 		options: [op5],
 		value: 'Ben Nevis'
 	}, ms2Index);
@@ -352,28 +404,30 @@ let findQuestions = () => {
 		});
 }
 
-async function findQuestionSet() {
-	let qs = {};
-	await QuestionSet.findOne({depth:0})
-		.then(qSet => qs = qSet);
-	return QuestionSet.loadFull(qs._id);
+async function findAssessment() {
+	let assm = {};
+	await Assessment.findOne({})
+		.then(out => assm = out);
+	return Assessment.loadFull(ass._id);
 }
 
 describe('Creating and reading questions', () => {
 
-	let qSet = {};
+	let ass1 = {};
 
 	let questions = [];
 	let mark = {};
 
 	before(done => {
 		require('events').EventEmitter.prototype._maxListeners = 32;
-		const {questions,questionsets,explanations, answers, marks} = mongoose.connection.collections;
+		const {questions,questionsets,assessments,explanations, answers, marks,categories} = mongoose.connection.collections;
 		if (questions) {
 			questions.drop()
 				.then(_ => questionsets.drop())
+				.then(_ => assessments.drop())
 				.then(_ => explanations.drop())
 				.then(_ => marks.drop())
+				.then(_ => categories.drop())
 				.then(_ => done())
 				.catch(error => {
 					done();
@@ -387,16 +441,12 @@ describe('Creating and reading questions', () => {
 		User.find().then(users=> {
 				createQuestions(users[1])
 				.then(items => {
-					findQuestionSet()
-					.then(qs => {
-						qSet = qs;
-						questions = qSet.questions;
-						createMark(qSet, users[0]).then(_ => {
+					findAssessment()
+					.then(ass => {
+						ass1 = ass;
+						createMark(ass1, users[0]).then(_ => {
 							Mark.find({})
 								.populate([{
-									path: 'answers.question',
-									model: 'Question'
-								},{
 									path: 'sections.answers.question',
 									model: 'Question'
 								}])
@@ -406,7 +456,7 @@ describe('Creating and reading questions', () => {
 									}
 								});
 						});
-						assert(qSet.sections.length === 1);			
+						assert(ass1.sections.length === 2);			
 						done();	
 					});
 			})
@@ -414,49 +464,48 @@ describe('Creating and reading questions', () => {
 		});
 	});
 
-	it("has 3 questions in parent section + 3 nested section", (done) => {
-		assert(questions.length === 3);	
-		assert(qSet.numQuestions === 6);
+	it("has 7 questions", (done) => {
+		assert(ass1.numQuestions === 7);
 		done();
 	});
 
 	it("The question set has two feedback instances.", (done) => {
-		assert(qSet.feedback.length === 2);
+		assert(ass1.feedback.length === 2);
 		done();
 	});
 
 	it("The question set feedback is 'Well done!' for scores over 50.", (done) => {
-		let fb = qSet.matchFeedback(100);
+		let fb = ass1.matchFeedback(100);
 		assert(fb.explanation.text == "Well done!");
 		done();
 	});
 
 	it("first question is multiple choice", (done) => {
-		assert(questions[0].mode === "multiple_choice");
+		assert(ass1.sections[0].questions[0].mode === "multiple_choice");
 		done();
 	});
 
 	it("first question has feedback with an explanation", (done) => {
-		assert(questions[0].feedback.length > 0);
-		assert(questions[0].feedback[0].explanation.text == "Good try");
+		assert(ass1.sections[0].questions[0].feedback.length > 0);
+		assert(ass1.sections[0].questions[0].feedback[0].explanation.text == "Good try");
 		done();
 	});
 
 	it("first question has 4 options and first is Sydney with a feedback explanation", (done) => {
-		assert(questions[0].options.length === 4);
-		assert(questions[0].options[0].text === 'Sydney');
-		assert(questions[0].options[0].feedback.explanation.text.length > 5);
+		assert(ass1.sections[0].questions[0].options.length === 4);
+		assert(ass1.sections[0].questions[0].options[0].text === 'Sydney');
+		assert(ass1.sections[0].questions[0].options[0].feedback.explanation.text.length > 5);
 		done();
 	});
 
 	it("second question is multiple answer with 7 options", (done) => {
-		assert(questions[1].mode === "multiple_answer");
-		assert(questions[1].options.length === 7);	
+		assert(ass1.sections[0].questions[1].mode === "multiple_answer");
+		assert(ass1.sections[0].questions[1].options.length === 7);	
 		done();
 	});
 
 	it("The 7th option of the second question has a feedback explanation", (done) => {
-		assert(questions[1].options[6].feedback.explanation.text.length > 3);	
+		assert(ass1.sections[0].questions[1].options[6].feedback.explanation.text.length > 3);	
 		done();
 	});
 
@@ -466,12 +515,12 @@ describe('Creating and reading questions', () => {
 	});
 
 	it("The first answer is correct and yields 1 point", (done) => {
-		assert(mark.answers[0].points === 1);
+		assert(mark.sections[0].answers[0].points === 1);
 		done();
 	});
 
 	it("The second answer is invalidated as 1 option is incorrect", (done) => {
-		assert(mark.answers[1].points === 0);
+		assert(mark.sections[0].answers[1].points === 0);
 		done();
 	});
 
@@ -480,10 +529,10 @@ describe('Creating and reading questions', () => {
 		done();
 	});
 
-	it("The test has a subsection with at least 1 question", (done) => {		
-		assert(qSet.sections[0].questions.length > 0);
-		assert(qSet.sections[0].questions[0].options[1].text == "Edinburgh");
-		let q1 = qSet.sections[0].questions[0];
+	it("The test has a second subsection with at least 1 question", (done) => {		
+		assert(ass1.sections[1].questions.length > 0);
+		assert(ass1.sections[1].questions[0].options[1].text == "Edinburgh");
+		let q1 = ass1.sections[1].questions[0];
 		let op2 = q1.getOptionById(q1.options[1]._id)
 		done();
 	});

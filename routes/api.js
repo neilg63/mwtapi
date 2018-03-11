@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ApiController = require('../controllers/api_controller')
 
-router.get('/qsets/:start?/:limit?', function(req, res) {
+router.get('/assessments/:start?/:limit?', function(req, res) {
 	let params = req.query, start = 0, limit = 100;
 	if (req.params.start) {
 		start = parseInt(req.params.start);
@@ -10,19 +10,19 @@ router.get('/qsets/:start?/:limit?', function(req, res) {
 	if (req.params.limit) {
 		limit = parseInt(req.params.limit);
 	}
-	ApiController.listQuestionSets(params,start,limit)
-		.then(qSets => {
-			res.send(qSets);
+	ApiController.listAssessments(params,start,limit)
+		.then(data => {
+			res.send(data);
 		}).catch(e => {
 			res.send(e);
 		});
 });
 
-router.get('/qset/:id', function(req, res) {
+router.get('/assessment/:id/:userId', function(req, res) {
 	let params = req.params;
-	ApiController.getQuestionSet(params.id)
-		.then(qSets => {
-			res.send(qSets);
+	ApiController.getAssessment(params.id, params.userId)
+		.then(assessment => {
+			res.send(assessment);
 		}).catch(e => {
 			res.send(e);
 		});
@@ -33,6 +33,15 @@ router.get('/categories', function(req, res) {
 	ApiController.listCategories()
 		.then(cats => {
 			res.send(cats);
+		}).catch(e => {
+			res.send(e);
+		});
+});
+
+router.post('/mark', function(req, res) {
+	ApiController.markQuestion(req.body)
+		.then(data => {
+			res.send(data);
 		}).catch(e => {
 			res.send(e);
 		});

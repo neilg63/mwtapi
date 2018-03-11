@@ -55,6 +55,15 @@ let OptionSchema = new mongoose.Schema({
   matches: {
     type:Number,
     required: false
+  },
+  matchedId: {
+  	type: String,
+    required: false
+  },
+  matchedLabel: {
+  	type: String,
+    required: false,
+    trim: true
   }
 });
 
@@ -67,6 +76,20 @@ OptionSchema.virtual('isMatch').get(function() {
   	}
   }
   return hasMatch;
+});
+
+OptionSchema.virtual('true').get(function() {
+  let isTrue = false;
+  if (this.valid === true) {
+  	isTrue = true
+  } else if (this.valid !== false) {
+  	this.valid = /(yes|true|correct)/.test(this.text.toString().toLowerCase());
+  }
+  return isTrue;
+});
+
+OptionSchema.virtual('rank').get(function() {
+  return parseInt(this.number);
 });
 
 module.exports = OptionSchema;

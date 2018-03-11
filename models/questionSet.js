@@ -13,14 +13,9 @@ const QuestionSetSchema = new mongoose.Schema({
     type: String,
     enum: ['test','survey','info']
   },
-  category:  {
-    type: ObjectId,
-    ref: 'Category',
-    required: false
-  },
   topics:  {
     type: [ObjectId],
-    ref: 'Category',
+    ref: 'Topic',
     required: false
   },
   public: {
@@ -30,11 +25,6 @@ const QuestionSetSchema = new mongoose.Schema({
   depth: {
   	type: Number,
   	default: 0
-  },
-  sections:  {
-    type: [ObjectId],
-    ref: 'QuestionSet',
-    required: false
   },
   questions:  {
     type: [ObjectId],
@@ -109,14 +99,8 @@ const QuestionSetSchema = new mongoose.Schema({
   }
 });
 
-QuestionSetSchema.virtual('hasSections').get(function() {
-  let hasSections = true;
-  if (this.sections) {
-    if (this.sections instanceof Array) {
-    	hasSections = this.sections.length > 0;
-    }
-  }
-  return hasSections;
+QuestionSetSchema.virtual('numQuestions').get(function() {
+  return this.questions.length;
 });
 
 QuestionSetSchema.methods.matchFeedback = function(criteria) {
@@ -201,100 +185,104 @@ QuestionSetSchema.methods.addFeedback = function(params) {
 	return fb;
 }
 
-QuestionSetSchema.methods.addSection = function(params) {
-	params.depth = this.depth + 1;
-	let questionSet = QuestionSet.create(params,this.user);
-	this.sections.push(questionSet);
-	questionSet.save();
-	return questionSet;
+QuestionSetSchema.statics.create = function(params, user) {
+	if (!params) {
+		params = {};
+	}
+	if (!params.created) {
+		params.created = new Date();
+	}
+	if (!params.edited) {
+		params.edited = new Date();
+	}
+	if (user !== undefined) {
+		params.user = user;
+	}
+	return new QuestionSet(params);
 }
 
-let QuestionSetLoadOne = function(id) {
-	return QuestionSet.findById(id)
-		.populate('category')
-		.populate('topics')
-		.populate('user')
-		.populate({
-			path: 'questions',
-			model: 'Question',
-			populate: [{
-				path: 'feedback.explanation',
-				model: 'explanation'	
-			},{
-				path: 'options.feedback.explanation',
-				model: 'explanation'	
-			}],
-		}).populate({
-			path: 'feedback.explanation',
-			model: 'explanation'
-		});
+QuestionSetSchema.statics.filterOptions = function(question,d) {
+	let limitOpts = (question.limit > 0 && question.limit < d.numOptions);
+	let invalidIds = [];
+	for (let j = 0; j < d.numOptions; j++) {
+		if (!_.isBoolean(question.options[j].valid)) {
+			question.options[j].valid = question.options[j].points > 0;
+		}
+		if (!question.options[j].valid) {
+			invalidIds.push(question.options[j]._id.toString());
+		}
+		d.options.push(QuestionSet.mapOption(question.options[j], question.mode));
+	}
+	if (question.random) {
+		d.options = _.shuffle(d.options);
+	}
+	if (limitOpts) {
+		let subtract = d.numOptions - question.limit,
+			subtracted = 0;
+		for (let k = d.numOptions-1; k >= 0; k--) {
+			if (invalidIds.indexOf(d.options[k]._id) >= 0 && subtracted < subtract) {
+				d.options.splice(k,1);
+				subtracted++;
+				if (subtracted >= subtract) {
+					break;
+				}
+			}
+		}
+		d.numOptions = d.options.length;
+	}
 }
 
-let QuestionSetMapSet = (qSet, full) => {
-	let i = 0,
-		json = JSON.parse(JSON.stringify(qSet)),
-		keys = Object.keys(json),
-		d = {}, key;
-	for (; i < keys.length; i++) {
-		key = keys[i];
-		switch (key) {
-			case "_id":
-				d[key] = qSet[key].toString();
-				break;
-			case "text":
-			case "title":
-			case "random":
-			case "limit":
-				d[key] = qSet[key];
-				break;
-			case "category":
-				d[key] = qSet[key].title;
-				d.category_id = qSet[key]._id;
-				break;
-			case "topics":
-				//d[key] = qSet[key].title;
-				break;
-			case "questions":
-				if (full) {
-					let numQ = qSet.questions.length;
-					if (numQ > 0) {
-						if (qSet.random) {
-							qSet.questions = _.shuffle(qSet.questions);
-							let lm = 2;
-							if (qSet.limit > 0 && qSet.limit < numQ) {
-								numQ = qSet.limit;
-							}
-						} else {
-							qSet.questions = _.sortBy(qSet.questions,['weight']);
-						}
-						d.questions = [];
-						for (let j = 0; j < numQ; j++) {
-							d.questions.push(QuestionSetMapQ(qSet.questions[j]));
-						}
-					}
-				}
-				break;
-			case 'sections':
-				if (qSet.depth < 1) {
-					d.numSections = qSet.sections.length;
-					if (d.numSections) {
-						d.sections = [];
-						for (let j = 0; j < d.numSections; j++) {
-							d.sections.push(QuestionSetMapSet(qSet.sections[j], full));
-						}
-						if (qSet.random) {
-							d.sections = _.shuffle(d.sections);
-						}
-					}
-				}
-				break;
+QuestionSetSchema.statics.mapOption = function(option,mode,reviewMode) {
+	let	d = {
+		_id: option._id.toString(),
+		text: option.text
+	};
+	switch (mode) {
+		case 'matching_pairs':
+			d.isMatch = option.isMatch;
+			if (!d.isMatch && option.number) {
+				d.number = option.number;
+			}
+			break;
+		case 'sort':
+				d.rank = option.rank;
+			break;
+		case 'multiple_choice':
+		case 'multiple_answer':
+				d.selected = false;
+			break;
+	}
+	if (reviewMode) {
+		d.points = option.points;
+		d.status = option.status;
+		if (option.valid !== undefined) {
+			d.valid = option.valid;
 		}
 	}
-	d.numQuestions = qSet.depth < 1? qSet.numQuestions : qSet.questions.length;
 	return d;
 }
 
-let QuestionSetMapQ = (question) => {
+QuestionSetSchema.statics.loadOne = function(id) {
+	return QuestionSet.findById(id)
+	.populate('topics')
+	.populate('user')
+	.populate({
+		path: 'questions',
+		model: 'Question',
+		populate: [{
+			path: 'feedback.explanation',
+			model: 'explanation'	
+		},{
+			path: 'options.feedback.explanation',
+			model: 'explanation'	
+		}],
+	}).populate({
+		path: 'feedback.explanation',
+		model: 'explanation'
+	});
+}
+
+QuestionSetSchema.statics.mapQuestion = function(question) {
 	let i = 0,
 		json = JSON.parse(JSON.stringify(question)),
 		keys = Object.keys(json),
@@ -329,7 +317,7 @@ let QuestionSetMapQ = (question) => {
 							break;
 					}
 					if (!skipOptions) {
-						QuestionSetFilterOptions(question, d);
+						QuestionSet.filterOptions(question, d);
 					}
 				}
 				break;
@@ -338,134 +326,52 @@ let QuestionSetMapQ = (question) => {
 	return d;
 }
 
-let QuestionSetFilterOptions = (question,d) => {
-	let limitOpts = (question.limit > 0 && question.limit < d.numOptions);
-	let invalidIds = [];
-	for (let j = 0; j < d.numOptions; j++) {
-		if (!_.isBoolean(question.options[j].valid)) {
-			question.options[j].valid = question.options[j].points > 0;
-		}
-		if (!question.options[j].valid) {
-			invalidIds.push(question.options[j]._id.toString());
-		}
-		d.options.push(QuestionSetMapOption(question.options[j], question.mode));
-	}
-	if (question.random) {
-		d.options = _.shuffle(d.options);
-	}
-	if (limitOpts) {
-		let subtract = d.numOptions - question.limit,
-			subtracted = 0;
-		for (let k = d.numOptions-1; k >= 0; k--) {
-			if (invalidIds.indexOf(d.options[k]._id) >= 0 && subtracted < subtract) {
-				d.options.splice(k,1);
-				subtracted++;
-				if (subtracted >= subtract) {
-					break;
-				}
-			}
-		}
-		d.numOptions = d.options.length;
-	}
-}
+QuestionSetSchema.statics.mapSet = function(qSet, full) {
+	let i = 0,
+		json = JSON.parse(JSON.stringify(qSet)),
+		keys = Object.keys(json),
+		d = {}, key;
+	for (; i < keys.length; i++) {
+		key = keys[i];
+		switch (key) {
+			case "_id":
+				d[key] = qSet[key].toString();
+				break;
+			case "text":
+			case "title":
+			case "random":
+			case "limit":
+				d[key] = qSet[key];
+				break;
+			case "topics":
+				//d[key] = qSet[key].title;
+				break;
+			case "questions":
+				if (full) {
+					let numQ = qSet.questions.length;
 
-let QuestionSetMapOption = (option,mode,reviewMode) => {
-	let	d = {
-		_id: option._id.toString(),
-		text: option.text
-	};
-	switch (mode) {
-		case 'matching_pairs':
-			d.isMatch = option.isMatch;
-			if (!d.isMatch && option.number) {
-				d.number = option.number;
-			}
-			break;
-	}
-	if (reviewMode) {
-		d.points = option.points;
-		d.status = option.status;
-		if (option.valid !== undefined) {
-			d.valid = option.valid;
+					if (numQ > 0) {
+						if (qSet.random) {
+							qSet.questions = _.shuffle(qSet.questions);
+							let lm = 2;
+							if (qSet.limit > 0 && qSet.limit < numQ) {
+								numQ = qSet.limit;
+							}
+						} else {
+							qSet.questions = _.sortBy(qSet.questions,['weight']);
+						}
+						d.questions = [];
+						for (let j = 0; j < numQ; j++) {
+							d.questions.push(QuestionSet.mapQuestion(qSet.questions[j]));
+						}
+					}
+				}
+				break;
 		}
 	}
+	d.numQuestions = qSet.numQuestions;
 	return d;
 }
-
-QuestionSetSchema.statics.create = function(params, user) {
-	if (!params) {
-		params = {};
-	}
-	if (!params.created) {
-		params.created = new Date();
-	}
-	if (!params.edited) {
-		params.edited = new Date();
-	}
-	if (user !== undefined) {
-		params.user = user;
-	}
-	return new QuestionSet(params);
-}
-
-QuestionSetSchema.statics.loadFull = async function(id) {
-	let qs = {};
-	await QuestionSetLoadOne(id)
-		.then(qSet => qs = qSet);
-	let numSecs = qs.sections.length;
-  if (numSecs > 0) {
-  	qs.numQuestions = qs.questions.length;
-  	for (let i = 0; i < numSecs; i++) {
-  		await QuestionSetLoadOne(qs.sections[i])
-				.then(section => {
-					qs.sections[i] = section;
-					qs.numQuestions += section.questions.length;
-				})
-				.catch(e => {});
-  	}
-  }
-	return qs;
-};
-
-QuestionSetSchema.statics.mapSet = function(qSet,full) {
-	return QuestionSetMapSet(qSet, full);
-}
-
-QuestionSetSchema.statics.loadMany = async function(criteria, start, limit) {
-	if (typeof criteria != 'object') {
-		criteria = {};
-	}
-	criteria.depth = 0;
-
-	let qSets = [];
-	await QuestionSet.find(criteria)
-		.limit(limit)
-		.skip(start)
-		.populate('category')
-		.populate('topics')
-		.populate('sections')
-		.populate('user')
-		.then(qss => qSets = qss);
-	let numSets = qSets.length, 
-	numSecs = 0,
-	qs;
-  if (numSets > 0) {
-  	for (let i = 0; i < numSets; i++) {
-			qs = qSets[i];
-			qs.numQuestions = qs.questions.length;
-			numSecs = qs.sections.length;
-
-	  	for (let j = 0; j < numSecs; j++) {
-	  		await QuestionSet.findById(qs.sections[j])
-					.then(section => {
-						qs.numQuestions += section.questions.length;
-					})
-					.catch(e => {});
-	  	}
-	  }
-  }
-	return qSets;
-};
 
 
 const QuestionSet = mongoose.model('questionSet', QuestionSetSchema);
