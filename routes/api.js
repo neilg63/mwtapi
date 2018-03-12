@@ -2,6 +2,36 @@ const express = require('express');
 const router = express.Router();
 const ApiController = require('../controllers/api_controller')
 
+router.post('/login', function(req, res) {
+	let params = req.params;
+	ApiController.login(params)
+		.then(data => {
+			res.send(data);
+		}).catch(e => {
+			res.send(e);
+		});
+});
+
+router.post('/register', function(req, res) {
+	let params = req.params;
+	ApiController.register(params)
+		.then(data => {
+			res.send(data);
+		}).catch(e => {
+			res.send(e);
+		});
+});
+
+router.get('/assessments/:userId', function(req, res) {
+	let params = req.params;
+	ApiController.userAssessments(params)
+		.then(data => {
+			res.send(data);
+		}).catch(e => {
+			res.send(e);
+		});
+});
+
 router.get('/assessments/:start?/:limit?', function(req, res) {
 	let params = req.query, start = 0, limit = 100;
 	if (req.params.start) {

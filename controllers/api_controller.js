@@ -8,6 +8,21 @@ const User = require("../models/user");
 
 const ApiController = {
 
+	async login(params) {
+		let data = {};
+		return data;
+	},
+
+	async register(params) {
+		let data = {};
+		return data;
+	},
+
+	async userAssessments() {
+		let data = {};
+		return data;
+	},
+
 	async listAssessments(params,start,limit) {
 		let assessments = [];
 		if (!start) {
