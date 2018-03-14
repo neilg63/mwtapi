@@ -1,4 +1,4 @@
-#MultiWebTest Api
+# MultiWebTest API
 
 This is a versatile advanced survey and test management system that supports a wide range of question types and assessment criteria.
 
