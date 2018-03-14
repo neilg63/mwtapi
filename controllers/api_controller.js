@@ -3,6 +3,7 @@ const Assessment = require("../models/assessment");
 const QuestionSet = require("../models/questionSet");
 const Question = require("../models/question");
 const Category = require("../models/category");
+const Explanation = require("../models/explanation");
 const Mark = require("../models/mark");
 const User = require("../models/user");
 
@@ -67,6 +68,17 @@ const ApiController = {
 				mappedData.markId = data._id
 			});
 		return mappedData;
+	},
+
+	async getFullAssessment(id) {
+		let assessment = {};
+		// load constructed assessment and
+		// store as presented to the user
+		await Assessment.loadFull(id)
+			.then(ass => {
+				assessment = ass.toObject();
+			});
+		return assessment;
 	},
 
 	async listCategories(limit,skip) {
@@ -137,6 +149,15 @@ const ApiController = {
 			result.maxPoints = question.maxPoints
 		}
 		return result;
+	},
+
+	async explanation(id) {
+		let explanation = {text: ''}
+		await Explanation.findById(id)
+			.then(data => {
+				explanation = data
+			});
+		return explanation
 	}
 
 }

@@ -58,6 +58,16 @@ router.get('/assessment/:id/:userId', function(req, res) {
 		});
 });
 
+router.get('/full-assessment/:id', function(req, res) {
+	let params = req.params;
+	ApiController.getFullAssessment(params.id, params.userId)
+		.then(assessment => {
+			res.send(assessment);
+		}).catch(e => {
+			res.send(e);
+		});
+});
+
 router.get('/categories', function(req, res) {
 	let params = req.params;
 	ApiController.listCategories()
@@ -70,6 +80,16 @@ router.get('/categories', function(req, res) {
 
 router.post('/mark', function(req, res) {
 	ApiController.markQuestion(req.body)
+		.then(data => {
+			res.send(data);
+		}).catch(e => {
+			res.send(e);
+		});
+});
+
+router.get('/explanation/:id', function(req, res) {
+	let params = req.params
+	ApiController.explanation(params.id)
 		.then(data => {
 			res.send(data);
 		}).catch(e => {
